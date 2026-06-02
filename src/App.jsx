@@ -180,6 +180,9 @@ export default function App() {
   const [groupSimLoading, setGroupSimLoading] = useState({}); // { A: true/false, ... }
   const [simAllLoading, setSimAllLoading] = useState(false);
   const [simAllProgress, setSimAllProgress] = useState(0);
+  const [liveOdds, setLiveOdds] = useState(null);
+  const [liveOddsLoading, setLiveOddsLoading] = useState(false);
+  const [liveOddsMeta, setLiveOddsMeta] = useState(null);
 
   // ---- MATCH PREDICTOR ----
   const predictMatch = async () => {
@@ -360,6 +363,22 @@ Devuelve EXACTAMENTE ${matchups.length} partidos en el mismo orden que se te dan
       setSimAllProgress(i + 1);
     }
     setSimAllLoading(false);
+  };
+
+  // ---- FETCH LIVE ODDS ----
+  const fetchLiveOdds = async () => {
+    setLiveOddsLoading(true);
+    try {
+      const res = await fetch('/api/odds');
+      const data = await res.json();
+      if (data.teams) {
+        setLiveOdds(data.teams);
+        setLiveOddsMeta(data.meta);
+      }
+    } catch (e) {
+      console.error('Failed to fetch live odds:', e);
+    }
+    setLiveOddsLoading(false);
   };
 
   const tabs = [
@@ -1019,14 +1038,60 @@ Devuelve EXACTAMENTE ${matchups.length} partidos en el mismo orden que se te dan
         {activeTab==="favoritos" && (
           <div style={{ animation:"fadeUp .5s ease-out" }}>
             {/* Header */}
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:"6px" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
               <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"10px", letterSpacing:"3px", color:"rgba(255,210,0,0.35)", textTransform:"uppercase" }}>
-                Cuotas casas de apuestas · Mundial 2026
+                Cuotas en vivo · Mundial 2026
               </div>
-              <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px", color:"rgba(255,210,0,0.25)" }}>
-                Fuente: mayo 2026
-              </div>
+              <button onClick={fetchLiveOdds} disabled={liveOddsLoading}
+                style={{ background:"rgba(255,210,0,0.1)", border:"1px solid rgba(255,210,0,0.3)", borderRadius:"6px", color:"#ffd200", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontSize:"11px", fontWeight:600, padding:"6px 12px", display:"flex", alignItems:"center", gap:"6px", transition:"all .2s" }}>
+                {liveOddsLoading
+                  ? <><span className="spinner" style={{ borderColor:"rgba(255,210,0,0.2)", borderTopColor:"#ffd200", width:"12px", height:"12px" }}/> Cargando...</>
+                  : <> 🔄 Actualizar cuotas</>}
+              </button>
             </div>
+
+            {/* Live odds meta */}
+            {liveOddsMeta && (
+              <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"10px", color:"rgba(255,210,0,0.4)", marginBottom:"10px", display:"flex", gap:"16px" }}>
+                <span>🕐 {new Date(liveOddsMeta.updated).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</span>
+                <span>📡 Requests restantes: {liveOddsMeta.remaining}</span>
+              </div>
+            )}
+
+            {/* Live odds table */}
+            {liveOdds && (
+              <div style={{ marginBottom:"20px", animation:"fadeUp .4s ease-out" }}>
+                <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px", letterSpacing:"2px", color:"rgba(255,210,0,0.3)", textTransform:"uppercase", marginBottom:"8px" }}>
+                  📡 Cuotas en tiempo real — The Odds API
+                </div>
+                {liveOdds.map((t, i) => {
+                  const teamData = ALL_TEAMS.find(x => x.name === t.name || t.name.includes(x.name.split(' ')[0]));
+                  return (
+                    <div key={t.name} className="card" style={{ padding:"10px 14px", marginBottom:"6px", background: i < 3 ? "rgba(255,210,0,0.05)" : "rgba(255,255,255,0.02)", border: i < 3 ? "1px solid rgba(255,210,0,0.2)" : "1px solid rgba(255,255,255,0.05)" }}>
+                      <div style={{ display:"grid", gridTemplateColumns:"24px 1fr auto auto auto", gap:"10px", alignItems:"center" }}>
+                        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:"16px", fontWeight:900, color:"rgba(255,210,0,0.2)" }}>{i+1}</div>
+                        <div>
+                          <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"13px", fontWeight:600, color: i===0 ? "#ffd200" : "#ddd6c8" }}>{t.name}</div>
+                          <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px", color:"rgba(221,214,200,0.3)", marginTop:"1px" }}>{t.bookmakers} casas de apuestas</div>
+                        </div>
+                        {t.wmHill && <div style={{ textAlign:"center" }}><div style={{ fontFamily:"'Playfair Display',serif", fontSize:"13px", color:"#8ab4f8", fontWeight:700 }}>{t.wmHill}</div><div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"8px", color:"rgba(221,214,200,0.25)" }}>WmHill</div></div>}
+                        {t.bet365 && <div style={{ textAlign:"center" }}><div style={{ fontFamily:"'Playfair Display',serif", fontSize:"13px", color:"#ffb74d", fontWeight:700 }}>{t.bet365}</div><div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"8px", color:"rgba(221,214,200,0.25)" }}>bet365</div></div>}
+                        <div style={{ textAlign:"right" }}>
+                          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:"16px", fontWeight:700, color: i===0 ? "#ffd200" : "rgba(221,214,200,0.7)" }}>{t.pct}%</div>
+                          <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px", color:"rgba(221,214,200,0.25)" }}>prob.</div>
+                        </div>
+                      </div>
+                      <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:"3px", height:"3px", overflow:"hidden", marginTop:"8px" }}>
+                        <div style={{ height:"100%", borderRadius:"3px", background: i===0 ? "#ffd200" : i<3 ? "rgba(255,210,0,0.5)" : "rgba(255,210,0,0.25)", width:`${(t.pct/liveOdds[0].pct)*100}%`, transition:"width 1.2s ease-out" }}/>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ borderTop:"1px solid rgba(255,255,255,0.05)", marginTop:"12px", paddingTop:"10px" }}>
+                  <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px", letterSpacing:"2px", color:"rgba(255,210,0,0.25)", textTransform:"uppercase", marginBottom:"8px" }}>Cuotas de referencia (mayo 2026)</div>
+                </div>
+              </div>
+            )}
 
             {/* Bookmaker header row */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 60px 60px 60px 48px", gap:"6px", padding:"8px 12px", marginBottom:"8px", borderBottom:"1px solid rgba(255,210,0,0.1)" }}>
